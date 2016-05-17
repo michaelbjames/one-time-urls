@@ -15,24 +15,15 @@ type RedisResponse = Either Reply (Maybe ByteString)
 main :: IO ()
 main = do
     conn <- connection
-    let filePathCache = runRedis conn
-    quickHttpServe (site filePathCache)
+    quickHttpServe (site conn)
 
-site :: (Redis RedisResponse -> IO RedisResponse) -> Snap ()
-site cache =
-    ifTop (writeBS "hello world") <|>
-    route [ ("foo", writeBS "bar")
-          , ("file/:filePath", (fileHandler cache))
-          -- , ("insert/:filePath/:hash", (insertHandler cache))
-          , ("echo/:echoparam", echoHandler)
-          ] <|>
-    dir "static" (F.serveDirectory ".")
-
-echoHandler :: Snap ()
-echoHandler = do
-    param <- getParam "echoparam"
-    maybe (writeBS "must specify echo/param in URL")
-          writeBS param
+site :: Connection  -> Snap ()
+site conn =
+    (ifTop (writeBS "hello world") <|>
+        route [ ("file/:fileHash", (fileHandler conn))
+              , ("insert/:filePath/:hash", (insertHandler conn))
+              ] <|>
+        dir "static" (F.serveDirectory "."))
 
 error404 :: Snap ()
 error404 = do
@@ -41,21 +32,35 @@ error404 = do
   r <- getResponse
   finishWith r
 
-fileHandler :: (Redis RedisResponse -> IO RedisResponse) -> Snap ()
-fileHandler cache = do
-    maybeFilePath <- getParam "filePath"
+fileHandler :: Connection -> Snap ()
+fileHandler conn = do
+    let cache = runRedis conn
+    maybeFilePath <- getParam "fileHash"
     case maybeFilePath of
         Nothing ->  error404
-        Just filePath -> do
-            response <- (liftIO (cache (get filePath)))
-            case response of
+        Just fileHash -> do
+            getResponse <- (liftIO (cache (get fileHash)))
+            delResponse <- liftIO $ cache $ del [fileHash]
+            case getResponse of
                 Left err -> do
                     liftIO $ putStrLn $ show (err :: Reply)
                     error404
-                Right Nothing -> do
-                    liftIO $ putStrLn $ "failed to find file for: " ++ (show filePath)
-                    error404
-                Right (Just value) ->
+                Right (Just value)->
                     F.serveFile $ unpack $ (value :: ByteString)
+                _ -> do
+                    liftIO $ putStrLn $ "failed to find file for: " ++ (show fileHash)
+                    error404
 
+insertHandler :: Connection -> Snap()
+insertHandler conn = do
+    let cache = runRedis conn
+    maybeValue <- getParam "filePath"
+    maybeKey <- getParam "hash"
+    case (maybeKey, maybeValue) of
+        (Just key, Just value) -> do
+            redisResponse <- liftIO (cache (set key value))
+            case redisResponse of
+                Right Ok -> writeBS "OK"
+                _ -> writeBS "NOT OK"
+        _ -> error404
 
