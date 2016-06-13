@@ -19,11 +19,12 @@ main = do
 
 site :: Connection  -> Snap ()
 site conn =
-    (ifTop (writeBS "hello world") <|>
-        route [ ("file/:fileHash", (fileHandler conn))
-              , ("insert/:filePath/:hash", (insertHandler conn))
-              ] <|>
-        dir "static" (F.serveDirectory "."))
+    (ifTop (writeBS "hello world")
+        <|> route
+            [ ("file/:fileHash", (method GET (fileHandler conn)))
+            , ("insert/:filePath/:hash", (method POST (insertHandler conn)))
+            ] 
+        <|> dir "static" (F.serveDirectory "."))
 
 error404 :: Snap ()
 error404 = do
@@ -35,12 +36,13 @@ error404 = do
 fileHandler :: Connection -> Snap ()
 fileHandler conn = do
     let cache = runRedis conn
+    let redisOp = liftIO . cache
     maybeFilePath <- getParam "fileHash"
     case maybeFilePath of
         Nothing ->  error404
         Just fileHash -> do
-            getResponse <- (liftIO (cache (get fileHash)))
-            delResponse <- liftIO $ cache $ del [fileHash]
+            getResponse <- redisOp $ get fileHash
+            delResponse <- redisOp $ del [fileHash]
             case getResponse of
                 Left err -> do
                     liftIO $ putStrLn $ show (err :: Reply)
@@ -60,7 +62,11 @@ insertHandler conn = do
         (Just key, Just value) -> do
             redisResponse <- liftIO (cache (set key value))
             case redisResponse of
-                Right Ok -> writeBS "OK"
-                _ -> writeBS "NOT OK"
+                Right Ok -> do
+                    liftIO (putStrLn $ "Wrote: " ++ (show value) ++ " to " ++ (show key))
+                    writeBS "OK"
+                _ -> do
+                    liftIO (putStrLn $ "FAILED to write: " ++ (show value) ++ " to " ++ (show key))
+                    writeBS "NOT OK"
         _ -> error404
 
