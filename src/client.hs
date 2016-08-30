@@ -31,24 +31,24 @@ main = do
     options <- parseArgs args
     filename <- getValidFilename options
     hashString <- case maybeHash options of
-        Nothing -> readFile filename >>= return . md5
+        Nothing -> fmap md5 (readFile filename)
         Just hash -> return hash
     sendToServer filename hashString (host options) (port options)
 
 sendToServer :: String -> String -> String -> Integer -> IO ()
 sendToServer filename hashString hostName portNum = do
-    let hostPort = "http://" ++ hostName ++ ":" ++ (show portNum)
+    let hostPort = "http://" ++ hostName ++ ":" ++ show portNum
     let urlFilePath = "/insert/" ++ filename ++ "/" ++ hashString
     let url = hostPort ++ urlFilePath
     putStrLn url
     let request = postRequest url
     result <- simpleHTTP request
-    putStrLn (show result)
+    print result
     return ()
 
 getValidFilename :: Options -> IO String
 getValidFilename options =
-    case (maybeFilename options) of
+    case maybeFilename options of
         Nothing -> do
             putStrLn usage
             exitFailure
