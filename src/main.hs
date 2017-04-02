@@ -28,41 +28,27 @@ error404 :: Snap ()
 error404 = do
   modifyResponse $ setResponseStatus 404 "Not Found"
   writeBS "404 Not Found"
-  -- r <- getResponse
-  -- finishWith r
-
- -- fileHandler :: Connection -> Snap ()
- -- fileHandler conn = do
-     -- let cache = runRedis conn
-     -- let redisOp = liftIO . cache
-     -- maybeFilePath <- getParam "fileHash"
-     -- case maybeFilePath of
-         -- Nothing ->  error404
-         -- Just fileHash -> do
-             -- liftIO $ putStrLn $ "serving " ++ (show fileHash)
-             -- getResponse <- redisOp $ get fileHash
-             -- delResponse <- redisOp $ del [fileHash]
-             -- case getResponse of
-                 -- Left err -> do
-                     -- liftIO $ putStrLn $ show (err :: Reply)
-                     -- error404
-                 -- Right (Just value)->
-                     -- F.serveFile $ unpack $ (value :: ByteString)
-                 -- _ -> do
-                     -- liftIO $ putStrLn $ "failed to find file for: " ++ (show fileHash)
-                     -- error404
 
 fileHandler :: Connection -> Snap ()
 fileHandler conn = do
-    let cache = runRedis conn
-    let redisOp = liftIO . cache
-    maybeFilePath <- getParam "fileHash"
-    fileHash <- maybeFilePath
-    liftIO $ putStrLn $ "serving " ++ show fileHash
-    getResponse <- redisOp $ get fileHash
-    delResponse <- redisOp $ del [fileHash]
-    maybeRedisValue <- getResponse
-    maybe error404 (F.serveFile . unpack) maybeRedisValue
+     let cache = runRedis conn
+     let redisOp = liftIO . cache
+     maybeFilePath <- getParam "fileHash"
+     case maybeFilePath of
+         Nothing ->  error404
+         Just fileHash -> do
+             liftIO $ print ("serving " ++ show fileHash)
+             getResponse <- redisOp $ get fileHash
+             delResponse <- redisOp $ del [fileHash]
+             case getResponse of
+                 Right (Just value)->
+                     F.serveFile $ unpack (value :: ByteString)
+                 Left err -> do
+                     liftIO $ print (err :: Reply)
+                     error404
+                 _ -> do
+                     liftIO $ print ("failed to find file for: " ++ show fileHash)
+                     error404
 
 insertHandler :: Connection -> Snap ()
 insertHandler conn = do
