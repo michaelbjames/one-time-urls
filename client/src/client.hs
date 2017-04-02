@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Client (main) where
+module Main (main) where
 
 import Network.HTTP (simpleHTTP, postRequest)
 import Crypto.Hash (hashlazy, MD5, Digest)
