@@ -35,16 +35,17 @@ main = do
         Just hash -> return hash
     sendToServer filename hashString (host options) (port options)
 
+retrievalUrl :: String -> String
+retrievalUrl = ("/file/" ++)
+
 sendToServer :: String -> String -> String -> Integer -> IO ()
 sendToServer filename hashString hostName portNum = do
     let hostPort = "http://" ++ hostName ++ ":" ++ show portNum
     let urlFilePath = "/insert/" ++ filename ++ "/" ++ hashString
     let url = hostPort ++ urlFilePath
-    putStrLn url
     let request = postRequest url
     result <- simpleHTTP request
-    print result
-    return ()
+    putStrLn (retrievalUrl hashString)
 
 getValidFilename :: Options -> IO String
 getValidFilename options =

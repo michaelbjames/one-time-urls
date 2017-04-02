@@ -55,6 +55,7 @@ insertHandler conn = do
     let cache = runRedis conn
     maybeValue <- getParam "filePath"
     maybeKey <- getParam "hash"
+    liftIO $ print maybeValue
     case (maybeKey, maybeValue) of
         (Just key, Just value) -> do
             redisResponse <- liftIO (cache (set key value))
